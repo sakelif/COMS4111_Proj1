@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Register</h2>
+<form method="POST" action="{{ url_for('register') }}">
+    <label for="username">Username:</label>
+    <input type="text" id="username" name="username" required>
+    
+    <label for="password">Password:</label>
+    <input type="password" id="password" name="password" required>
+    
+    <label for="is_admin">User Type:</label>
+    <select id="is_admin" name="is_admin">
+        <option value="customer">Customer</option>
+        <option value="admin">Admin</option>
+    </select>
+
+    <div id="customer-fields" style="display: none;">
+        <label for="photo">Photo URL:</label>
+        <input type="text" id="photo" name="photo">
+        
+        <label for="latitude">Latitude:</label>
+        <input type="text" id="latitude" name="latitude">
+        
+        <label for="longitude">Longitude:</label>
+        <input type="text" id="longitude" name="longitude">
+    </div>
+
+    <button type="submit">Register</button>
+</form>
+
+<script>
+    const userTypeSelect = document.getElementById('is_admin');
+    const customerFields = document.getElementById('customer-fields');
+    userTypeSelect.addEventListener('change', function() {
+        customerFields.style.display = userTypeSelect.value === 'customer' ? 'block' : 'none';
+    });
+</script>
+
+<a href="{{ url_for('login') }}">Back to Login</a>
+{% endblock %}
+

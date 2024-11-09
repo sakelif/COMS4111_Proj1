@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Customer Dashboard</h2>
+<h3>All Restaurants</h3>
+<ul>
+    {% for restaurant in all_restaurants %}
+        <li>{{ restaurant.rest_name }} - {{ restaurant.loc }}
+            <form method="POST" action="{{ url_for('write_review') }}">
+                <input type="hidden" name="rest_name" value="{{ restaurant.rest_name }}">
+                <label for="contents">Review:</label>
+                <input type="text" name="contents" required>
+                <label for="rating">Rating:</label>
+                <input type="number" name="rating" min="1" max="5" required>
+                <button type="submit">Submit Review</button>
+            </form>
+        </li>
+    {% endfor %}
+</ul>
+<a href="{{ url_for('update_allergens') }}">Update Allergens</a>
+<a href="{{ url_for('logout') }}">Logout</a>
+{% endblock %}
+

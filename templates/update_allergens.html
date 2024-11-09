@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Update Allergens</h2>
+<form method="POST" action="{{ url_for('update_allergens') }}">
+    <label for="allergen">Add Allergen:</label>
+    <input type="text" id="allergen" name="allergen" required>
+    <button type="submit">Add Allergen</button>
+</form>
+
+<h3>Your Allergens:</h3>
+<ul>
+    {% for allergen in allergens %}
+        <li>{{ allergen }}</li>
+    {% endfor %}
+</ul>
+<a href="{{ url_for('customer_dashboard') }}">Back to Dashboard</a>
+{% endblock %}
+
