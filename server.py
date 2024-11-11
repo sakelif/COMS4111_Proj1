@@ -1,8 +1,3 @@
-"""
-Columbia W4111 Intro to databases
-Restaurant Finder Application with User Registration, Allergen Search, and Reviews
-"""
-
 import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
@@ -87,7 +82,7 @@ def register():
         
         if is_admin:
             # Admin registration
-            query = "INSERT INTO Users (name, password, employee_id) VALUES (:username, :password, TRUE)"
+            query = "INSERT INTO Users ( name, password, employee_id)  VALUES (:username, :password, TRUE)"
             g.conn.execute(text(query), {'username': username, 'password': password})
             flash('Admin profile created successfully')
         else:
