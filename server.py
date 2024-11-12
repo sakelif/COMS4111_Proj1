@@ -57,7 +57,7 @@ def home():
     else:
         return redirect(url_for('customer_dashboard'))
 
-# Updated Login route
+# Login route
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -136,51 +136,32 @@ def customer_dashboard():
                            all_restaurants=all_restaurants, 
                            all_reviews=all_reviews)
 
-# Updated route to manage allergens
-@app.route('/update_allergen', methods=['GET', 'POST'])
-def update_allergen():
-    user_id = session.get('user_id')
-    
-    if request.method == 'POST':
-        action = request.form.get('action')
-        allergen = request.form.get('allergen')
-        
-        if action == 'add':
-            # Add allergen
-            query = """
-                INSERT INTO Customer_Allergens (user_id, allergen)
-                VALUES (:user_id, :allergen)
-                ON CONFLICT DO NOTHING
-            """
-            try:
-                g.conn.execute(text(query), {'user_id': user_id, 'allergen': allergen})
-                flash('Allergen added successfully')
-            except Exception as e:
-                print("Error adding allergen:", e)
-                flash('Error adding allergen')
-        
-        elif action == 'remove':
-            # Remove allergen
-            query = "DELETE FROM Customer_Allergens WHERE user_id = :user_id AND allergen = :allergen"
-            try:
-                g.conn.execute(text(query), {'user_id': user_id, 'allergen': allergen})
-                flash('Allergen removed successfully')
-            except Exception as e:
-                print("Error removing allergen:", e)
-                flash('Error removing allergen')
-
-    # Fetch current allergens for the user
-    allergens_query = "SELECT allergen FROM Customer_Allergens WHERE user_id = :user_id"
-    current_allergens = g.conn.execute(text(allergens_query), {'user_id': user_id}).fetchall()
-
-    return render_template('update_allergens.html', allergens=current_allergens)
-
 # Route to display restaurant details
-@app.route('/restaurant/<rest_name>')
+@app.route('/restaurant/<rest_name>', methods=['GET', 'POST'])
 def restaurant_details(rest_name):
     user_id = session.get('user_id')
     
-    # Fetch restaurant details
+    # Save restaurant if requested
+    if request.method == 'POST' and 'save_restaurant' in request.form:
+        query = "INSERT INTO Customer_Saves (user_id, rest_name) VALUES (:user_id, :rest_name) ON CONFLICT DO NOTHING"
+        g.conn.execute(text(query), {'user_id': user_id, 'rest_name': rest_name})
+        flash('Restaurant saved successfully')
+
+    # Write review if requested
+    if request.method == 'POST' and 'write_review' in request.form:
+        contents = request.form['review_content']
+        rating = int(request.form['rating'])
+        query = """
+            INSERT INTO Review_Writes (contents, rating, user_id) 
+            VALUES (:contents, :rating, :user_id) RETURNING review_id
+        """
+        review_id = g.conn.execute(text(query), {'contents': contents, 'rating': rating, 'user_id': user_id}).fetchone()['review_id']
+        # Link review to restaurant
+        g.conn.execute(text("INSERT INTO Review_has (review_id, rest_name) VALUES (:review_id, :rest_name)"),
+                       {'review_id': review_id, 'rest_name': rest_name})
+        flash('Review submitted successfully')
+
+    # Fetch restaurant details, including cuisine type and diet
     query = """
         SELECT r.rest_name, r.loc, r.latitude, r.longitude, r.cuisineType, r.diet_name
         FROM Restaurant_Creates r
@@ -193,28 +174,36 @@ def restaurant_details(rest_name):
     user_location = g.conn.execute(text(user_query), {'user_id': user_id}).fetchone()
     distance = calculate_distance(user_location['latitude'], user_location['longitude'], restaurant['latitude'], restaurant['longitude'])
     
-    # Fetch menu items and check for allergens
+    # Fetch menu items and check for allergens, displaying ingredients on a single line
     menu_query = """
-        SELECT mic.item_name, mii.ing_name, 
-               CASE WHEN ca.allergen IS NOT NULL THEN TRUE ELSE FALSE END AS contains_allergen
+        SELECT mic.item_name, STRING_AGG(mii.ing_name, ', ') AS ingredients,
+               CASE WHEN bool_or(ca.allergen IS NOT NULL) THEN TRUE ELSE FALSE END AS contains_allergen
         FROM Menu_Item_Includes mii
         JOIN Menu_Item_Contains mic ON mii.item_name = mic.item_name
         LEFT JOIN Customer_Allergens ca ON mii.ing_name = ca.allergen AND ca.user_id = :user_id
         WHERE mic.rest_name = :rest_name
+        GROUP BY mic.item_name
     """
     menu_items = g.conn.execute(text(menu_query), {'user_id': user_id, 'rest_name': rest_name}).fetchall()
     
-    # Get the number of reviews and average rating
+    # Get the number of reviews, average rating, and detailed reviews
     reviews_query = """
-        SELECT COUNT(rw.review_id) AS review_count, ROUND(AVG(rw.rating), 2) AS avg_rating
+        SELECT COUNT(rw.review_id) AS review_count, ROUND(AVG(rw.rating), 2) AS avg_rating,
+               rw.contents, rw.rating, p.name AS reviewer
         FROM Review_Writes rw
         JOIN Review_has rh ON rw.review_id = rh.review_id
+        JOIN People p ON rw.user_id = p.user_id
         WHERE rh.rest_name = :rest_name
+        GROUP BY rw.review_id, p.name
     """
-    review_stats = g.conn.execute(text(reviews_query), {'rest_name': rest_name}).fetchone()
-    
+    reviews = g.conn.execute(text(reviews_query), {'rest_name': rest_name}).fetchall()
+
+    # Review statistics
+    review_count = len(reviews)
+    avg_rating = round(sum([review['rating'] for review in reviews]) / review_count, 2) if review_count > 0 else None
+
     return render_template('restaurant_details.html', restaurant=restaurant, menu_items=menu_items, 
-                           distance=distance, review_count=review_stats['review_count'], avg_rating=review_stats['avg_rating'])
+                           distance=distance, review_count=review_count, avg_rating=avg_rating, reviews=reviews)
 
 # Filter restaurants based on allergens, distance, diet type, and reviews
 @app.route('/filter_restaurants', methods=['GET', 'POST'])

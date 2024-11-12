@@ -11,13 +11,38 @@
 <h3>Menu</h3>
 <ul>
     {% for item in menu_items %}
-        <li>{{ item.item_name }} - Ingredient: {{ item.ing_name }}
+        <li>{{ item.item_name }} - Ingredients: {{ item.ingredients }}
             {% if item.contains_allergen %}
                 <strong>(Contains allergen)</strong>
             {% endif %}
         </li>
     {% endfor %}
 </ul>
+
+<h3>Reviews</h3>
+<ul>
+    {% for review in reviews %}
+        <li>
+            {{ review.reviewer }} rated {{ review.rating }}: {{ review.contents }}
+        </li>
+    {% endfor %}
+</ul>
+
+<h3>Write a Review</h3>
+<form method="POST">
+    <label for="review_content">Your Review:</label>
+    <textarea name="review_content" id="review_content" required></textarea>
+    
+    <label for="rating">Rating:</label>
+    <input type="number" name="rating" id="rating" min="1" max="5" required>
+    
+    <button type="submit" name="write_review">Submit Review</button>
+</form>
+
+<form method="POST">
+    <button type="submit" name="save_restaurant">Save Restaurant</button>
+</form>
+
 <a href="{{ url_for('customer_dashboard') }}">Back to Dashboard</a>
 {% endblock %}
 
