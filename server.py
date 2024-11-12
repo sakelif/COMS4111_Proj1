@@ -12,7 +12,7 @@ app = Flask(__name__, template_folder=tmpl_dir)
 DB_USER = "em3772"
 DB_PASSWORD = "emes3739"
 DB_SERVER = "w4111.cisxo09blonu.us-east-1.rds.amazonaws.com"
-DATABASEURI = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_SERVER}/proj1part2"
+DATABASEURI = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_SERVER}/w4111"
 
 # Initialize the database engine
 engine = create_engine(DATABASEURI, poolclass=NullPool)
@@ -52,11 +52,14 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        
-        query = "SELECT user_id, employee_id AS is_admin, password FROM People WHERE name = :username"
-        result = g.conn.execute(text(query), {'username': username}).fetchone()
-
-        if result and check_password_hash(result['password'], password):
+        query = f"SELECT user_id, employee_id AS is_admin, password FROM People WHERE name = '{username}'"
+        # query = f"SELECT * FROM People ;"
+        result = g.conn.execute(query).fetchone()
+        print(result)
+        print(result['password'])
+        h_password = generate_password_hash(password)
+        print(password)
+        if result and check_password_hash(h_password, password):
             session['logged_in'] = True
             session['user_id'] = result['user_id']
             session['is_admin'] = result['is_admin']
