@@ -1,4 +1,5 @@
 import os
+import random
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
 from flask import Flask, request, render_template, g, redirect, url_for, flash, session
@@ -30,6 +31,10 @@ def before_request():
 def teardown_request(exception):
     if g.conn:
         g.conn.close()
+
+# Function to generate a random user_id
+def generate_random_user_id():
+    return random.randint(10000, 99999)  # Generate a random 5-digit ID
 
 # Home route
 @app.route('/')
@@ -75,21 +80,23 @@ def register():
         is_admin = request.form['is_admin'] == 'admin'
         
         hashed_password = generate_password_hash(password)
+        user_id = generate_random_user_id()
+        
         try:
             if is_admin:
-                query = "INSERT INTO People (name, password, employee_id) VALUES (:username, :password, TRUE)"
-                g.conn.execute(text(query), {'username': username, 'password': hashed_password})
+                query = "INSERT INTO People (user_id, name, password, employee_id) VALUES (:user_id, :username, :password, TRUE)"
+                g.conn.execute(text(query), {'user_id': user_id, 'username': username, 'password': hashed_password})
                 flash('Admin profile created successfully')
             else:
                 latitude = request.form['latitude']
                 longitude = request.form['longitude']
                 photo = request.form['photo']
                 query = """
-                    INSERT INTO People (name, password, employee_id, photo, latitude, longitude)
-                    VALUES (:username, :password, FALSE, :photo, :latitude, :longitude)
+                    INSERT INTO People (user_id, name, password, employee_id, photo, latitude, longitude)
+                    VALUES (:user_id, :username, :password, FALSE, :photo, :latitude, :longitude)
                 """
                 g.conn.execute(text(query), {
-                    'username': username, 'password': hashed_password,
+                    'user_id': user_id, 'username': username, 'password': hashed_password,
                     'photo': photo, 'latitude': latitude, 'longitude': longitude
                 })
                 flash('Customer profile created successfully')
@@ -192,3 +199,4 @@ if __name__ == "__main__":
         app.run(host=host, port=port, debug=debug, threaded=threaded)
 
     run()
+
