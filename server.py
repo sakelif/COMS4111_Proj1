@@ -48,7 +48,7 @@ def login():
         username = request.form['username']
         password = request.form['password']
         
-        query = "SELECT user_id, employee_id AS is_admin, password FROM Users WHERE name = :username"
+        query = "SELECT user_id, employee_id AS is_admin, password FROM People WHERE name = :username"
         result = g.conn.execute(text(query), {'username': username}).fetchone()
 
         if result and check_password_hash(result['password'], password):
