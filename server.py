@@ -77,7 +77,7 @@ def register():
         hashed_password = generate_password_hash(password)
         try:
             if is_admin:
-                query = "INSERT INTO Users (name, password, employee_id) VALUES (:username, :password, TRUE)"
+                query = "INSERT INTO People (name, password, employee_id) VALUES (:username, :password, TRUE)"
                 g.conn.execute(text(query), {'username': username, 'password': hashed_password})
                 flash('Admin profile created successfully')
             else:
@@ -85,7 +85,7 @@ def register():
                 longitude = request.form['longitude']
                 photo = request.form['photo']
                 query = """
-                    INSERT INTO Users (name, password, employee_id, photo, latitude, longitude)
+                    INSERT INTO People (name, password, employee_id, photo, latitude, longitude)
                     VALUES (:username, :password, FALSE, :photo, :latitude, :longitude)
                 """
                 g.conn.execute(text(query), {
