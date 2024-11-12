@@ -1,18 +1,28 @@
 {% extends "base.html" %}
 {% block content %}
 <h2>Update Allergens</h2>
-<form method="POST" action="{{ url_for('update_allergens') }}">
+
+<form method="POST" action="{{ url_for('update_allergen') }}">
     <label for="allergen">Add Allergen:</label>
     <input type="text" id="allergen" name="allergen" required>
+    <input type="hidden" name="action" value="add">
     <button type="submit">Add Allergen</button>
 </form>
 
 <h3>Your Allergens:</h3>
 <ul>
     {% for allergen in allergens %}
-        <li>{{ allergen }}</li>
+        <li>
+            {{ allergen.allergen }}
+            <form method="POST" action="{{ url_for('update_allergen') }}" style="display:inline;">
+                <input type="hidden" name="allergen" value="{{ allergen.allergen }}">
+                <input type="hidden" name="action" value="remove">
+                <button type="submit">Remove</button>
+            </form>
+        </li>
     {% endfor %}
 </ul>
+
 <a href="{{ url_for('customer_dashboard') }}">Back to Dashboard</a>
 {% endblock %}
 

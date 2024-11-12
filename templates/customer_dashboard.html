@@ -1,22 +1,23 @@
-{% extends "base.html" %}
-{% block content %}
-<h2>Customer Dashboard</h2>
+<form method="POST" action="{{ url_for('filter_restaurants') }}">
+    <h3>Filter Restaurants</h3>
+    <label for="max_distance">Max Distance (miles):</label>
+    <input type="number" id="max_distance" name="max_distance" step="0.1" required>
+    
+    <label for="diet_type">Diet Type:</label>
+    <input type="text" id="diet_type" name="diet_type">
+    
+    <label for="min_reviews">Minimum Reviews:</label>
+    <input type="number" id="min_reviews" name="min_reviews" min="0" required>
+    
+    <button type="submit">Filter</button>
+</form>
+
 <h3>All Restaurants</h3>
 <ul>
     {% for restaurant in all_restaurants %}
         <li>{{ restaurant.rest_name }} - {{ restaurant.loc }}
-            <form method="POST" action="{{ url_for('write_review') }}">
-                <input type="hidden" name="rest_name" value="{{ restaurant.rest_name }}">
-                <label for="contents">Review:</label>
-                <input type="text" name="contents" required>
-                <label for="rating">Rating:</label>
-                <input type="number" name="rating" min="1" max="5" required>
-                <button type="submit">Submit Review</button>
-            </form>
+            <a href="{{ url_for('restaurant_details', rest_name=restaurant.rest_name) }}">View Details</a>
         </li>
     {% endfor %}
 </ul>
-<a href="{{ url_for('update_allergens') }}">Update Allergens</a>
-<a href="{{ url_for('logout') }}">Logout</a>
-{% endblock %}
 

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Filtered Restaurants</h2>
+<ul>
+    {% for restaurant in filtered_restaurants %}
+        <li>{{ restaurant.rest_name }} - {{ restaurant.loc }}
+            <p>Distance: {{ restaurant.distance | round(2) }} miles</p>
+            <p>Diet Type: {{ restaurant.diet_name }}</p>
+            <p>Number of Reviews: {{ restaurant.review_count }}</p>
+            <p>Average Rating: {{ restaurant.avg_rating }}</p>
+            <a href="{{ url_for('restaurant_details', rest_name=restaurant.rest_name) }}">View Details</a>
+        </li>
+    {% endfor %}
+</ul>
+<a href="{{ url_for('customer_dashboard') }}">Back to Dashboard</a>
+{% endblock %}
+
