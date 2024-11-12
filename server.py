@@ -2,6 +2,7 @@ import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
 from flask import Flask, request, render_template, g, redirect, url_for, flash, session
+from werkzeug.security import generate_password_hash, check_password_hash
 
 tmpl_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
 app = Flask(__name__, template_folder=tmpl_dir)
@@ -27,10 +28,8 @@ def before_request():
 
 @app.teardown_request
 def teardown_request(exception):
-    try:
+    if g.conn:
         g.conn.close()
-    except Exception as e:
-        pass
 
 # Home route
 @app.route('/')
@@ -49,21 +48,16 @@ def login():
         username = request.form['username']
         password = request.form['password']
         
-        query = """
-            SELECT user_id, employee_id AS is_admin
-            FROM Users
-            WHERE name = :username AND password = :password;
-        """
-        result = g.conn.execute(text(query), {'username': username, 'password': password}).fetchone()
-        
-        if result:
+        query = "SELECT user_id, employee_id AS is_admin, password FROM Users WHERE name = :username"
+        result = g.conn.execute(text(query), {'username': username}).fetchone()
+
+        if result and check_password_hash(result['password'], password):
             session['logged_in'] = True
             session['user_id'] = result['user_id']
             session['is_admin'] = result['is_admin']
             return redirect(url_for('home'))
         else:
             flash('Invalid credentials')
-            return redirect(url_for('login'))
     return render_template('login.html')
 
 # Logout route
@@ -80,22 +74,28 @@ def register():
         password = request.form['password']
         is_admin = request.form['is_admin'] == 'admin'
         
-        if is_admin:
-            # Admin registration
-            query = "INSERT INTO Users ( name, password, employee_id)  VALUES (:username, :password, TRUE)"
-            g.conn.execute(text(query), {'username': username, 'password': password})
-            flash('Admin profile created successfully')
-        else:
-            # Customer registration with location data
-            latitude = request.form['latitude']
-            longitude = request.form['longitude']
-            photo = request.form['photo']
-            query = """
-                INSERT INTO Users (name, password, employee_id, photo, latitude, longitude)
-                VALUES (:username, :password, FALSE, :photo, :latitude, :longitude)
-            """
-            g.conn.execute(text(query), {'username': username, 'password': password, 'photo': photo, 'latitude': latitude, 'longitude': longitude})
-            flash('Customer profile created successfully')
+        hashed_password = generate_password_hash(password)
+        try:
+            if is_admin:
+                query = "INSERT INTO Users (name, password, employee_id) VALUES (:username, :password, TRUE)"
+                g.conn.execute(text(query), {'username': username, 'password': hashed_password})
+                flash('Admin profile created successfully')
+            else:
+                latitude = request.form['latitude']
+                longitude = request.form['longitude']
+                photo = request.form['photo']
+                query = """
+                    INSERT INTO Users (name, password, employee_id, photo, latitude, longitude)
+                    VALUES (:username, :password, FALSE, :photo, :latitude, :longitude)
+                """
+                g.conn.execute(text(query), {
+                    'username': username, 'password': hashed_password,
+                    'photo': photo, 'latitude': latitude, 'longitude': longitude
+                })
+                flash('Customer profile created successfully')
+        except Exception as e:
+            print("Registration Error:", e)
+            flash('Error during registration')
         
         return redirect(url_for('login'))
     return render_template('register.html')
@@ -135,8 +135,8 @@ def admin_dashboard():
             })
             flash('Restaurant created successfully')
         except Exception as e:
+            print("Error creating restaurant:", e)
             flash('Error creating restaurant')
-            print(e)
     
     return render_template('admin_dashboard.html')
 
@@ -150,19 +150,23 @@ def write_review():
     contents = request.form['contents']
     rating = request.form['rating']
     
-    query = """
-        INSERT INTO Review_Writes (contents, rating, user_id)
-        VALUES (:contents, :rating, :user_id)
-        RETURNING review_id
-    """
-    result = g.conn.execute(text(query), {'contents': contents, 'rating': rating, 'user_id': user_id}).fetchone()
-    review_id = result['review_id']
+    try:
+        query = """
+            INSERT INTO Review_Writes (contents, rating, user_id)
+            VALUES (:contents, :rating, :user_id)
+            RETURNING review_id
+        """
+        result = g.conn.execute(text(query), {'contents': contents, 'rating': rating, 'user_id': user_id}).fetchone()
+        review_id = result['review_id']
 
-    # Link review to restaurant
-    query = "INSERT INTO Review_has (review_id, rest_name) VALUES (:review_id, :rest_name)"
-    g.conn.execute(text(query), {'review_id': review_id, 'rest_name': rest_name})
-    
-    flash('Review submitted successfully')
+        # Link review to restaurant
+        query = "INSERT INTO Review_has (review_id, rest_name) VALUES (:review_id, :rest_name)"
+        g.conn.execute(text(query), {'review_id': review_id, 'rest_name': rest_name})
+        
+        flash('Review submitted successfully')
+    except Exception as e:
+        print("Error submitting review:", e)
+        flash('Error submitting review')
     return redirect(url_for('customer_dashboard'))
 
 # Helper function to get all restaurants
@@ -188,4 +192,3 @@ if __name__ == "__main__":
         app.run(host=host, port=port, debug=debug, threaded=threaded)
 
     run()
-
