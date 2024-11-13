@@ -1,7 +1,5 @@
-{% extends "base.html" %}
-{% block content %}
-<h2>Register</h2>
 <form method="POST" action="{{ url_for('register') }}">
+    <!-- Existing registration fields -->
     <label for="username">Username:</label>
     <input type="text" id="username" name="username" required>
     
@@ -14,6 +12,7 @@
         <option value="admin">Admin</option>
     </select>
 
+    <!-- Customer-specific fields -->
     <div id="customer-fields" style="display: none;">
         <label for="photo">Photo URL:</label>
         <input type="text" id="photo" name="photo">
@@ -23,6 +22,9 @@
         
         <label for="longitude">Longitude:</label>
         <input type="text" id="longitude" name="longitude">
+        
+        <label for="allergens">Allergens (comma-separated):</label>
+        <input type="text" id="allergens" name="allergens" placeholder="e.g., Peanuts, Shellfish">
     </div>
 
     <button type="submit">Register</button>
@@ -35,7 +37,4 @@
         customerFields.style.display = userTypeSelect.value === 'customer' ? 'block' : 'none';
     });
 </script>
-
-<a href="{{ url_for('login') }}">Back to Login</a>
-{% endblock %}
 

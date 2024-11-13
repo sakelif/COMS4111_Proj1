@@ -1,23 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Customer Dashboard</h2>
+
+<!-- Filter Restaurants -->
+<h3>Filter Restaurants</h3>
 <form method="POST" action="{{ url_for('filter_restaurants') }}">
-    <h3>Filter Restaurants</h3>
     <label for="max_distance">Max Distance (miles):</label>
-    <input type="number" id="max_distance" name="max_distance" step="0.1" required>
+    <input type="text" id="max_distance" name="max_distance">
     
     <label for="diet_type">Diet Type:</label>
-    <input type="text" id="diet_type" name="diet_type">
+    <input type="text" id="diet_type" name="diet_type" placeholder="e.g., Vegetarian">
     
     <label for="min_reviews">Minimum Reviews:</label>
-    <input type="number" id="min_reviews" name="min_reviews" min="0" required>
+    <input type="text" id="min_reviews" name="min_reviews">
+    
+    <!-- Cuisine Type Checkbox Options -->
+    <h4>Select Cuisine Type(s):</h4>
+    <div>
+        {% for cuisine in unique_cuisines %}
+            <input type="checkbox" name="cuisine_types" value="{{ cuisine }}"> {{ cuisine }}<br>
+        {% endfor %}
+    </div>
     
     <button type="submit">Filter</button>
 </form>
 
-<h3>All Restaurants</h3>
+<!-- Display Saved Restaurants -->
+<h3>Your Saved Restaurants</h3>
 <ul>
-    {% for restaurant in all_restaurants %}
-        <li>{{ restaurant.rest_name }} - {{ restaurant.loc }}
-            <a href="{{ url_for('restaurant_details', rest_name=restaurant.rest_name) }}">View Details</a>
+    {% for restaurant in saved_restaurants %}
+        <li><a href="{{ url_for('restaurant_details', rest_name=restaurant.rest_name) }}">{{ restaurant.rest_name }}</a></li>
+    {% endfor %}
+</ul>
+
+<!-- Allergen Management Section -->
+<h3>Your Allergens</h3>
+<ul>
+    {% for allergen in allergens %}
+        <li>{{ allergen }}
+            <form method="POST" action="{{ url_for('delete_allergen') }}" style="display:inline;">
+                <input type="hidden" name="allergen" value="{{ allergen }}">
+                <button type="submit">Delete</button>
+            </form>
         </li>
     {% endfor %}
 </ul>
+
+<h4>Add New Allergen</h4>
+<form method="POST" action="{{ url_for('add_allergen') }}">
+    <label for="new_allergen">Allergen:</label>
+    <input type="text" id="new_allergen" name="new_allergen" required>
+    <button type="submit">Add Allergen</button>
+</form>
+
+<a href="{{ url_for('logout') }}">Logout</a>
+{% endblock %}
 
