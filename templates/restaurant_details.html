@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>{{ restaurant.rest_name }}</h2>
-<p><strong>Location:</strong> {{ restaurant.loc }}</p>
-<p><strong>Cuisine Type:</strong> {{ restaurant.cuisineType or "Not specified" }}</p>
-<p><strong>Diet Type:</strong> {{ restaurant.diet_name or "Not specified" }}</p>
+<h2>{{ restaurant.name }}</h2>
+<p><strong>Location:</strong> {{ restaurant.location or "Not specified" }}</p>
+<p><strong>Cuisine Type:</strong> {{ cuisine_types | join(', ') }}</p>
+<p><strong>Diet Type:</strong> {{ restaurant.diet or "Not specified" }}</p>
 <p><strong>Distance from you:</strong> {{ distance | round(2) }} miles</p>
 
 <h3>Menu</h3>
@@ -40,10 +40,6 @@
     <input type="number" name="rating" id="rating" min="1" max="5" required>
     
     <button type="submit" name="write_review">Submit Review</button>
-</form>
-
-<form method="POST">
-    <button type="submit" name="save_restaurant">Save Restaurant</button>
 </form>
 
 <a href="{{ url_for('customer_dashboard') }}">Back to Dashboard</a>

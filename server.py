@@ -189,12 +189,12 @@ def delete_allergen():
 @app.route('/restaurant/<rest_name>', methods=['GET', 'POST'])
 def restaurant_details(rest_name):
     user_id = session.get('user_id')
-    
+
     # Handle review submission
     if request.method == 'POST':
         review_content = request.form.get('review_content')
         rating = request.form.get('rating')
-        
+
         if review_content and rating:
             try:
                 # Generate a new review_id
@@ -225,19 +225,23 @@ def restaurant_details(rest_name):
                 print("Error submitting review:", e)
                 flash('Error submitting review')
         return redirect(url_for('restaurant_details', rest_name=rest_name))
-    
+
     # Fetch restaurant details, including cuisine type
     query = """
-        SELECT rest_name, loc, cuisineType, diet_name, latitude, longitude
+        SELECT rest_name AS name, loc AS location, cuisineType AS cuisine,
+               diet_name AS diet, latitude, longitude
         FROM Restaurant_Creates
         WHERE rest_name = :rest_name
     """
     restaurant = g.conn.execute(text(query), {'rest_name': rest_name}).fetchone()
-    
+
+    # Check for and split cuisine types
+    cuisine_types = restaurant['cuisine'].split(', ') if restaurant['cuisine'] else []
+
     # Calculate distance between user and restaurant
     user_location_query = "SELECT latitude, longitude FROM People WHERE user_id = :user_id"
     user_location = g.conn.execute(text(user_location_query), {'user_id': user_id}).fetchone()
-    
+
     distance = None
     if user_location:
         distance = calculate_distance(user_location.latitude, user_location.longitude, restaurant.latitude, restaurant.longitude)
@@ -252,7 +256,7 @@ def restaurant_details(rest_name):
         ORDER BY rw.dt DESC
     """
     reviews = g.conn.execute(text(reviews_query), {'rest_name': rest_name}).fetchall()
-    
+
     # Fetch menu items with ingredients and allergen information
     menu_query = """
         SELECT mic.item_name, ARRAY_AGG(DISTINCT mii.ing_name) AS ingredients,
@@ -267,6 +271,7 @@ def restaurant_details(rest_name):
     return render_template(
         'restaurant_details.html',
         restaurant=restaurant,
+        cuisine_types=cuisine_types,
         distance=distance,
         reviews=reviews,
         menu_items=menu_items
