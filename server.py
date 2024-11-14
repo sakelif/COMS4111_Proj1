@@ -277,7 +277,7 @@ def filter_restaurants():
     user_id = session.get('user_id')
     max_distance = request.form.get('max_distance')
     diet_type = request.form.get('diet_type')
-    min_reviews = request.form.get('min_reviews', 0) or 0  # Set default to 0 if empty
+    min_reviews = request.form.get('min_reviews', 0) or 0  # Default to 0 if empty
     selected_cuisines = request.form.getlist('cuisine_types')  # List of selected cuisine types
 
     # Base query for filtering restaurants
@@ -309,8 +309,8 @@ def filter_restaurants():
 
     # Filter by diet type if specified
     if diet_type:
-        query += " AND r.diet_name ILIKE :diet_type"
-        params['diet_type'] = f"%{diet_type}%"
+        query += " AND LOWER(r.diet_name) ILIKE :diet_type"
+        params['diet_type'] = f"%{diet_type.lower()}%"
 
     # Filter by minimum number of reviews
     query += " GROUP BY r.rest_name, r.loc, r.latitude, r.longitude, r.cuisineType, r.diet_name"
