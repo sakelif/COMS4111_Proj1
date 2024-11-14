@@ -31,6 +31,15 @@
     <p>No reviews yet.</p>
 {% endif %}
 
+<!-- Conditionally display "Save" or "Unsave" button -->
+<form method="POST">
+    {% if is_saved %}
+        <button type="submit" name="unsave_restaurant">Unsave Restaurant</button>
+    {% else %}
+        <button type="submit" name="save_restaurant">Save Restaurant</button>
+    {% endif %}
+</form>
+
 <h3>Write a Review</h3>
 <form method="POST">
     <label for="review_content">Your Review:</label>

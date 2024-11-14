@@ -65,10 +65,7 @@ def login():
         password = request.form['password']
         query = f"SELECT user_id, employee_id AS is_admin, password FROM People WHERE name = '{username}'"
         result = g.conn.execute(query).fetchone()
-        print(result)
-        print(result['password'])
         h_password = generate_password_hash(password)
-        print(password)
         if result and check_password_hash(h_password, password):
             session['logged_in'] = True
             session['user_id'] = result['user_id']
@@ -133,7 +130,6 @@ def register():
 def get_unique_cuisines():
     query = "SELECT DISTINCT cuisineType FROM Restaurant_Creates WHERE cuisineType IS NOT NULL"
     result = g.conn.execute(text(query)).fetchall()
-    print(result)  # To verify the result structure
     return [row[0] for row in result]  # Access the single column by index
 
 # Display allergens in the customer dashboard
@@ -189,6 +185,24 @@ def delete_allergen():
 @app.route('/restaurant/<rest_name>', methods=['GET', 'POST'])
 def restaurant_details(rest_name):
     user_id = session.get('user_id')
+
+    # Handle saving or unsaving the restaurant
+    if request.method == 'POST':
+        if 'save_restaurant' in request.form:
+            # Save restaurant
+            save_query = "INSERT INTO Customer_Saves (user_id, rest_name) VALUES (:user_id, :rest_name) ON CONFLICT DO NOTHING"
+            g.conn.execute(text(save_query), {'user_id': user_id, 'rest_name': rest_name})
+            flash('Restaurant saved successfully')
+        elif 'unsave_restaurant' in request.form:
+            # Unsave restaurant
+            unsave_query = "DELETE FROM Customer_Saves WHERE user_id = :user_id AND rest_name = :rest_name"
+            g.conn.execute(text(unsave_query), {'user_id': user_id, 'rest_name': rest_name})
+            flash('Restaurant unsaved successfully')
+        return redirect(url_for('restaurant_details', rest_name=rest_name))
+
+    # Check if the restaurant is already saved
+    check_saved_query = "SELECT 1 FROM Customer_Saves WHERE user_id = :user_id AND rest_name = :rest_name"
+    is_saved = g.conn.execute(text(check_saved_query), {'user_id': user_id, 'rest_name': rest_name}).fetchone() is not None
 
     # Handle review submission
     if request.method == 'POST':
@@ -274,7 +288,8 @@ def restaurant_details(rest_name):
         cuisine_types=cuisine_types,
         distance=distance,
         reviews=reviews,
-        menu_items=menu_items
+        menu_items=menu_items,
+        is_saved=is_saved
     )
 
 @app.route('/filter_restaurants', methods=['POST'])
