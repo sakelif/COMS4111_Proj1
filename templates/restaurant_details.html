@@ -1,17 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
 <h2>{{ restaurant.rest_name }}</h2>
-<p>Location: {{ restaurant.loc }}</p>
-<p>Cuisine Type: {{ restaurant.cuisineType }}</p>
-<p>Diet Type: {{ restaurant.diet_name }}</p>
-<p>Distance from you: {{ distance | round(2) }} miles</p>
-<p>Number of Reviews: {{ review_count }}</p>
-<p>Average Rating: {{ avg_rating }}</p>
+<p><strong>Location:</strong> {{ restaurant.loc }}</p>
+<p><strong>Cuisine Type:</strong> {{ restaurant.cuisineType or "Not specified" }}</p>
+<p><strong>Diet Type:</strong> {{ restaurant.diet_name or "Not specified" }}</p>
+<p><strong>Distance from you:</strong> {{ distance | round(2) }} miles</p>
 
 <h3>Menu</h3>
 <ul>
     {% for item in menu_items %}
-        <li>{{ item.item_name }} - Ingredients: {{ item.ingredients }}
+        <li>{{ item.item_name }} - Ingredients: {{ item.ingredients | join(', ') }}
             {% if item.contains_allergen %}
                 <strong>(Contains allergen)</strong>
             {% endif %}
@@ -20,20 +18,25 @@
 </ul>
 
 <h3>Reviews</h3>
-<ul>
-    {% for review in reviews %}
-        <li>
-            {{ review.reviewer }} rated {{ review.rating }}: {{ review.contents }}
-        </li>
-    {% endfor %}
-</ul>
+{% if reviews %}
+    <ul>
+        {% for review in reviews %}
+            <li>
+                <strong>{{ review.name }}</strong> rated <strong>{{ review.rating }}</strong>/5
+                on <em>{{ review.dt }}</em><br>{{ review.contents }}
+            </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>No reviews yet.</p>
+{% endif %}
 
 <h3>Write a Review</h3>
 <form method="POST">
     <label for="review_content">Your Review:</label>
     <textarea name="review_content" id="review_content" required></textarea>
     
-    <label for="rating">Rating:</label>
+    <label for="rating">Rating (1-5):</label>
     <input type="number" name="rating" id="rating" min="1" max="5" required>
     
     <button type="submit" name="write_review">Submit Review</button>

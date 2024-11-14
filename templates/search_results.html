@@ -3,7 +3,11 @@
 <h2>Allergen-Free Restaurants</h2>
 <ul>
     {% for result in results %}
-        <li>{{ result.rest_name }} - {{ result.loc }}</li>
+        <li>
+            <a href="{{ url_for('restaurant_details', rest_name=result.rest_name) }}">
+                {{ result.rest_name }} - {{ result.loc }}
+            </a>
+        </li>
     {% endfor %}
 </ul>
 <a href="{{ url_for('customer_dashboard') }}">Back to Dashboard</a>
