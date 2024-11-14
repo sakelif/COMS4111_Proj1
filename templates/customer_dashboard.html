@@ -17,9 +17,13 @@
     <!-- Cuisine Type Checkbox Options -->
     <h4>Select Cuisine Type(s):</h4>
     <div>
-        {% for cuisine in unique_cuisines %}
-            <input type="checkbox" name="cuisine_types" value="{{ cuisine }}"> {{ cuisine }}<br>
-        {% endfor %}
+        <input type="checkbox" name="cuisine_types" value="French"> French<br>
+        <input type="checkbox" name="cuisine_types" value="American"> American<br>
+        <input type="checkbox" name="cuisine_types" value="Chinese"> Chinese<br>
+        <input type="checkbox" name="cuisine_types" value="Italian"> Italian<br>
+        <input type="checkbox" name="cuisine_types" value="Seafood"> Seafood<br>
+        <input type="checkbox" name="cuisine_types" value="Southern"> Southern<br>
+        <!-- Add more general categories as needed -->
     </div>
     
     <button type="submit">Filter</button>
