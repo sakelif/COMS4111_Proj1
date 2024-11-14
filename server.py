@@ -186,81 +186,98 @@ def delete_allergen():
     
     return redirect(url_for('customer_dashboard'))
 
-# Route to display restaurant details
 @app.route('/restaurant/<rest_name>', methods=['GET', 'POST'])
 def restaurant_details(rest_name):
     user_id = session.get('user_id')
     
-    # Save restaurant if requested
-    if request.method == 'POST' and 'save_restaurant' in request.form:
-        query = "INSERT INTO Customer_Saves (user_id, rest_name) VALUES (:user_id, :rest_name) ON CONFLICT DO NOTHING"
-        g.conn.execute(text(query), {'user_id': user_id, 'rest_name': rest_name})
-        flash('Restaurant saved successfully')
+    # Handle review submission
+    if request.method == 'POST':
+        review_content = request.form.get('review_content')
+        rating = request.form.get('rating')
+        
+        if review_content and rating:
+            try:
+                # Generate a new review_id
+                new_review_id = random.randint(10000, 99999)
+                review_query = """
+                    INSERT INTO Review_Writes (review_id, contents, rating, dt, user_id)
+                    VALUES (:review_id, :contents, :rating, CURRENT_DATE, :user_id)
+                """
+                g.conn.execute(text(review_query), {
+                    'review_id': new_review_id,
+                    'contents': review_content,
+                    'rating': int(rating),
+                    'user_id': user_id
+                })
 
-    # Write review if requested
-    if request.method == 'POST' and 'write_review' in request.form:
-        contents = request.form['review_content']
-        rating = int(request.form['rating'])
-        query = """
-            INSERT INTO Review_Writes (contents, rating, user_id) 
-            VALUES (:contents, :rating, :user_id) RETURNING review_id
-        """
-        review_id = g.conn.execute(text(query), {'contents': contents, 'rating': rating, 'user_id': user_id}).fetchone()['review_id']
-        # Link review to restaurant
-        g.conn.execute(text("INSERT INTO Review_has (review_id, rest_name) VALUES (:review_id, :rest_name)"),
-                       {'review_id': review_id, 'rest_name': rest_name})
-        flash('Review submitted successfully')
+                # Associate the new review with the restaurant
+                review_has_query = """
+                    INSERT INTO Review_has (review_id, rest_name)
+                    VALUES (:review_id, :rest_name)
+                """
+                g.conn.execute(text(review_has_query), {
+                    'review_id': new_review_id,
+                    'rest_name': rest_name
+                })
 
-    # Fetch restaurant details, including cuisine type and diet
+                flash('Review submitted successfully')
+            except Exception as e:
+                print("Error submitting review:", e)
+                flash('Error submitting review')
+        return redirect(url_for('restaurant_details', rest_name=rest_name))
+    
+    # Fetch restaurant details, including cuisine type
     query = """
-        SELECT r.rest_name, r.loc, r.latitude, r.longitude, r.cuisineType, r.diet_name
-        FROM Restaurant_Creates r
-        WHERE r.rest_name = :rest_name
+        SELECT rest_name, loc, cuisineType, diet_name, latitude, longitude
+        FROM Restaurant_Creates
+        WHERE rest_name = :rest_name
     """
     restaurant = g.conn.execute(text(query), {'rest_name': rest_name}).fetchone()
     
-    # Calculate distance from user to restaurant
-    user_query = "SELECT latitude, longitude FROM People WHERE user_id = :user_id"
-    user_location = g.conn.execute(text(user_query), {'user_id': user_id}).fetchone()
-    distance = calculate_distance(user_location['latitude'], user_location['longitude'], restaurant['latitude'], restaurant['longitude'])
+    # Calculate distance between user and restaurant
+    user_location_query = "SELECT latitude, longitude FROM People WHERE user_id = :user_id"
+    user_location = g.conn.execute(text(user_location_query), {'user_id': user_id}).fetchone()
     
-    # Fetch menu items and check for allergens, displaying ingredients on a single line
-    menu_query = """
-        SELECT mic.item_name, STRING_AGG(mii.ing_name, ', ') AS ingredients,
-               CASE WHEN bool_or(ca.allergen IS NOT NULL) THEN TRUE ELSE FALSE END AS contains_allergen
-        FROM Menu_Item_Includes mii
-        JOIN Menu_Item_Contains mic ON mii.item_name = mic.item_name
-        LEFT JOIN Customer_Allergens ca ON mii.ing_name = ca.allergen AND ca.user_id = :user_id
-        WHERE mic.rest_name = :rest_name
-        GROUP BY mic.item_name
-    """
-    menu_items = g.conn.execute(text(menu_query), {'user_id': user_id, 'rest_name': rest_name}).fetchall()
-    
-    # Get the number of reviews, average rating, and detailed reviews
+    distance = None
+    if user_location:
+        distance = calculate_distance(user_location.latitude, user_location.longitude, restaurant.latitude, restaurant.longitude)
+
+    # Fetch reviews for the restaurant
     reviews_query = """
-        SELECT COUNT(rw.review_id) AS review_count, ROUND(AVG(rw.rating), 2) AS avg_rating,
-               rw.contents, rw.rating, p.name AS reviewer
+        SELECT p.name, rw.rating, rw.contents, rw.dt
         FROM Review_Writes rw
         JOIN Review_has rh ON rw.review_id = rh.review_id
         JOIN People p ON rw.user_id = p.user_id
         WHERE rh.rest_name = :rest_name
-        GROUP BY rw.review_id, p.name
+        ORDER BY rw.dt DESC
     """
     reviews = g.conn.execute(text(reviews_query), {'rest_name': rest_name}).fetchall()
+    
+    # Fetch menu items with ingredients and allergen information
+    menu_query = """
+        SELECT mic.item_name, ARRAY_AGG(DISTINCT mii.ing_name) AS ingredients,
+               bool_or(mii.ing_name IN (SELECT allergen FROM Customer_Allergens WHERE user_id = :user_id)) AS contains_allergen
+        FROM Menu_Item_Contains mic
+        JOIN Menu_Item_Includes mii ON mic.item_name = mii.item_name
+        WHERE mic.rest_name = :rest_name
+        GROUP BY mic.item_name
+    """
+    menu_items = g.conn.execute(text(menu_query), {'rest_name': rest_name, 'user_id': user_id}).fetchall()
 
-    # Review statistics
-    review_count = len(reviews)
-    avg_rating = round(sum([review['rating'] for review in reviews]) / review_count, 2) if review_count > 0 else None
+    return render_template(
+        'restaurant_details.html',
+        restaurant=restaurant,
+        distance=distance,
+        reviews=reviews,
+        menu_items=menu_items
+    )
 
-    return render_template('restaurant_details.html', restaurant=restaurant, menu_items=menu_items, distance=distance, review_count=review_count, avg_rating=avg_rating, reviews=reviews)
-
-# Filter restaurants based on allergens, distance, diet type, reviews, and multiple cuisine types
 @app.route('/filter_restaurants', methods=['POST'])
 def filter_restaurants():
     user_id = session.get('user_id')
     max_distance = request.form.get('max_distance')
     diet_type = request.form.get('diet_type')
-    min_reviews = request.form.get('min_reviews', 0)
+    min_reviews = request.form.get('min_reviews', 0) or 0  # Set default to 0 if empty
     selected_cuisines = request.form.getlist('cuisine_types')  # List of selected cuisine types
 
     # Base query for filtering restaurants
@@ -310,7 +327,7 @@ def filter_restaurants():
 
     restaurants = g.conn.execute(text(query), params).fetchall()
 
-    return render_template('customer_dashboard.html', filtered_restaurants=restaurants)
+    return render_template('search_results.html', results=restaurants)
 
 # Helper function to get all restaurants
 def get_all_restaurants():
