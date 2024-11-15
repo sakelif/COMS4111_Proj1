@@ -9,7 +9,16 @@
 <h3>Menu</h3>
 <ul>
     {% for item in menu_items %}
-        <li>{{ item.item_name }} - Ingredients: {{ item.ingredients | join(', ') }}
+        <li>
+            {{ item.item_name }} - Ingredients: 
+            {% for ingredient in item.ingredients %}
+                {% if ingredient in allergens %}
+                    <span style="color: red; font-weight: bold;">{{ ingredient }}</span>
+                {% else %}
+                    {{ ingredient }}
+                {% endif %}
+                {% if not loop.last %}, {% endif %}
+            {% endfor %}
             {% if item.contains_allergen %}
                 <strong>(Contains allergen)</strong>
             {% endif %}

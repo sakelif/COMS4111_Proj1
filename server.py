@@ -281,6 +281,9 @@ def restaurant_details(rest_name):
         GROUP BY mic.item_name
     """
     menu_items = g.conn.execute(text(menu_query), {'rest_name': rest_name, 'user_id': user_id}).fetchall()
+    
+    allergen_query = "SELECT allergen FROM Customer_Allergens WHERE user_id = :user_id"
+    allergens = [row['allergen'] for row in g.conn.execute(text(allergen_query), {'user_id': user_id}).fetchall()]
 
     return render_template(
         'restaurant_details.html',
@@ -289,8 +292,9 @@ def restaurant_details(rest_name):
         distance=distance,
         reviews=reviews,
         menu_items=menu_items,
-        is_saved=is_saved
-    )
+        is_saved=is_saved,
+        allergens=allergens
+        )
 
 @app.route('/filter_restaurants', methods=['POST'])
 def filter_restaurants():
