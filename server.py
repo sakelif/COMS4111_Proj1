@@ -65,7 +65,10 @@ def login():
         password = request.form['password']
         query = f"SELECT user_id, employee_id AS is_admin, password FROM People WHERE name = '{username}'"
         result = g.conn.execute(query).fetchone()
+        print(result)
+        print(result['password'])
         h_password = generate_password_hash(password)
+        print(password)
         if result and check_password_hash(h_password, password):
             session['logged_in'] = True
             session['user_id'] = result['user_id']
@@ -130,7 +133,86 @@ def register():
 def get_unique_cuisines():
     query = "SELECT DISTINCT cuisineType FROM Restaurant_Creates WHERE cuisineType IS NOT NULL"
     result = g.conn.execute(text(query)).fetchall()
+    print(result)  # To verify the result structure
     return [row[0] for row in result]  # Access the single column by index
+
+@app.route('/admin_dashboard', methods=['GET', 'POST'])
+def admin_dashboard():
+    if not session.get('is_admin'):
+        return redirect(url_for('home'))
+
+    # Handle restaurant creation
+    if request.method == 'POST' and 'create_restaurant' in request.form:
+        rest_name = request.form['rest_name'].strip()
+        loc = request.form['loc'].strip()
+        latitude = request.form['latitude'].strip()
+        longitude = request.form['longitude'].strip()
+        cuisine_type = ', '.join([c.strip() for c in request.form['cuisineType'].split(',')])
+        diet_name = ', '.join([d.strip() for d in request.form['diet_name'].split(',')])
+        user_id = session.get('user_id')
+
+        try:
+            query = """
+                INSERT INTO Restaurant_Creates (rest_name, loc, latitude, longitude, cuisineType, diet_name, user_id)
+                VALUES (:rest_name, :loc, :latitude, :longitude, :cuisineType, :diet_name, :user_id)
+            """
+            g.conn.execute(text(query), {
+                'rest_name': rest_name,
+                'loc': loc,
+                'latitude': float(latitude),
+                'longitude': float(longitude),
+                'cuisineType': cuisine_type,
+                'diet_name': diet_name,
+                'user_id': user_id
+            })
+            flash('Restaurant created successfully')
+        except Exception as e:
+            print("Error creating restaurant:", e)
+            flash('Error creating restaurant')
+
+    # Handle menu item and ingredient addition
+    if request.method == 'POST' and 'add_menu_item' in request.form:
+        menu_restaurant = request.form['menu_restaurant'].strip()
+        item_name = request.form['item_name'].strip()
+        price = request.form['price'].strip()
+        ingredients = [ingredient.strip() for ingredient in request.form['ingredients'].split(',')]
+
+        try:
+            # Insert menu item into Menu_Item_Contains
+            menu_item_query = """
+                INSERT INTO Menu_Item_Contains (item_name, price, rest_name)
+                VALUES (:item_name, :price, :rest_name)
+            """
+            g.conn.execute(text(menu_item_query), {
+                'item_name': item_name,
+                'price': float(price),
+                'rest_name': menu_restaurant
+            })
+
+            # Insert ingredients into Menu_Item_Includes
+            for ingredient in ingredients:
+                ingredient_query = """
+                    INSERT INTO Menu_Item_Includes (item_name, ing_name)
+                    VALUES (:item_name, :ing_name)
+                """
+                g.conn.execute(text(ingredient_query), {
+                    'item_name': item_name,
+                    'ing_name': ingredient
+                })
+            flash('Menu item and ingredients added successfully')
+        except Exception as e:
+            print("Error adding menu item or ingredients:", e)
+            flash('Error adding menu item or ingredients')
+
+    # Fetch restaurants created by the admin
+    restaurant_query = "SELECT rest_name FROM Restaurant_Creates WHERE user_id = :user_id"
+    restaurants = g.conn.execute(text(restaurant_query), {'user_id': session['user_id']}).fetchall()
+    restaurant_names = [row['rest_name'] for row in restaurants]
+
+    # Debugging Logs
+    print(f"Restaurants created by admin: {restaurant_names}")
+
+    return render_template('admin_dashboard.html', restaurant_names=restaurant_names)
 
 # Display allergens in the customer dashboard
 @app.route('/customer_dashboard')
@@ -185,24 +267,6 @@ def delete_allergen():
 @app.route('/restaurant/<rest_name>', methods=['GET', 'POST'])
 def restaurant_details(rest_name):
     user_id = session.get('user_id')
-
-    # Handle saving or unsaving the restaurant
-    if request.method == 'POST':
-        if 'save_restaurant' in request.form:
-            # Save restaurant
-            save_query = "INSERT INTO Customer_Saves (user_id, rest_name) VALUES (:user_id, :rest_name) ON CONFLICT DO NOTHING"
-            g.conn.execute(text(save_query), {'user_id': user_id, 'rest_name': rest_name})
-            flash('Restaurant saved successfully')
-        elif 'unsave_restaurant' in request.form:
-            # Unsave restaurant
-            unsave_query = "DELETE FROM Customer_Saves WHERE user_id = :user_id AND rest_name = :rest_name"
-            g.conn.execute(text(unsave_query), {'user_id': user_id, 'rest_name': rest_name})
-            flash('Restaurant unsaved successfully')
-        return redirect(url_for('restaurant_details', rest_name=rest_name))
-
-    # Check if the restaurant is already saved
-    check_saved_query = "SELECT 1 FROM Customer_Saves WHERE user_id = :user_id AND rest_name = :rest_name"
-    is_saved = g.conn.execute(text(check_saved_query), {'user_id': user_id, 'rest_name': rest_name}).fetchone() is not None
 
     # Handle review submission
     if request.method == 'POST':
@@ -273,17 +337,15 @@ def restaurant_details(rest_name):
 
     # Fetch menu items with ingredients and allergen information
     menu_query = """
-        SELECT mic.item_name, ARRAY_AGG(DISTINCT mii.ing_name) AS ingredients,
+        SELECT mic.item_name, mic.price, 
+               ARRAY_AGG(DISTINCT mii.ing_name) AS ingredients,
                bool_or(mii.ing_name IN (SELECT allergen FROM Customer_Allergens WHERE user_id = :user_id)) AS contains_allergen
         FROM Menu_Item_Contains mic
         JOIN Menu_Item_Includes mii ON mic.item_name = mii.item_name
         WHERE mic.rest_name = :rest_name
-        GROUP BY mic.item_name
+        GROUP BY mic.item_name, mic.price
     """
     menu_items = g.conn.execute(text(menu_query), {'rest_name': rest_name, 'user_id': user_id}).fetchall()
-    
-    allergen_query = "SELECT allergen FROM Customer_Allergens WHERE user_id = :user_id"
-    allergens = [row['allergen'] for row in g.conn.execute(text(allergen_query), {'user_id': user_id}).fetchall()]
 
     return render_template(
         'restaurant_details.html',
@@ -291,23 +353,21 @@ def restaurant_details(rest_name):
         cuisine_types=cuisine_types,
         distance=distance,
         reviews=reviews,
-        menu_items=menu_items,
-        is_saved=is_saved,
-        allergens=allergens
-        )
+        menu_items=menu_items
+    )
 
 @app.route('/filter_restaurants', methods=['POST'])
 def filter_restaurants():
     user_id = session.get('user_id')
     max_distance = request.form.get('max_distance')
     diet_type = request.form.get('diet_type')
-    min_reviews = request.form.get('min_reviews', 0) or 0  # Default to 0 if empty
-    selected_cuisines = request.form.getlist('cuisine_types')  # List of selected cuisine types
+    min_reviews = request.form.get('min_reviews', 0) or 0
+    selected_cuisines = request.form.getlist('cuisine_types')
 
-    # Base query for filtering restaurants
+    # Base query
     query = """
         SELECT r.rest_name, r.loc, r.latitude, r.longitude, r.cuisineType, r.diet_name,
-               COUNT(rw.review_id) AS review_count, ROUND(AVG(rw.rating), 2) AS avg_rating
+               COUNT(rw.review_id) AS review_count, COALESCE(ROUND(AVG(rw.rating), 2), 0) AS avg_rating
         FROM Restaurant_Creates r
         LEFT JOIN Review_has rh ON rh.rest_name = r.rest_name
         LEFT JOIN Review_Writes rw ON rw.review_id = rh.review_id
@@ -315,42 +375,42 @@ def filter_restaurants():
     """
     params = {}
 
-    # Filter by distance if max_distance is specified
+    # Add distance filtering
     if max_distance:
         user_location_query = "SELECT latitude, longitude FROM People WHERE user_id = :user_id"
         user_location = g.conn.execute(text(user_location_query), {'user_id': user_id}).fetchone()
         if user_location:
             user_lat, user_lon = user_location.latitude, user_location.longitude
-            distance_query = """
+            query += """
                 AND (3959 * acos(
                     cos(radians(:user_lat)) * cos(radians(r.latitude)) *
                     cos(radians(r.longitude) - radians(:user_lon)) +
                     sin(radians(:user_lat)) * sin(radians(r.latitude))
                 )) <= :max_distance
             """
-            query += distance_query
             params.update({'user_lat': user_lat, 'user_lon': user_lon, 'max_distance': float(max_distance)})
 
-    # Filter by diet type if specified
+    # Add diet type filtering
     if diet_type:
         query += " AND LOWER(r.diet_name) ILIKE :diet_type"
         params['diet_type'] = f"%{diet_type.lower()}%"
 
-    # Filter by minimum number of reviews
-    query += " GROUP BY r.rest_name, r.loc, r.latitude, r.longitude, r.cuisineType, r.diet_name"
-    query += " HAVING COUNT(rw.review_id) >= :min_reviews"
+    # Add cuisine filtering
+    if selected_cuisines:
+        query += " AND (" + " OR ".join(
+            [f"LOWER(r.cuisineType) ILIKE :cuisine_{i}" for i in range(len(selected_cuisines))]
+        ) + ")"
+        params.update({f"cuisine_{i}": f"%{cuisine.lower()}%" for i, cuisine in enumerate(selected_cuisines)})
+
+    # Group and filter
+    query += """
+        GROUP BY r.rest_name, r.loc, r.latitude, r.longitude, r.cuisineType, r.diet_name
+        HAVING COUNT(rw.review_id) >= :min_reviews OR :min_reviews = 0
+    """
     params['min_reviews'] = int(min_reviews)
 
-    # Filter by cuisine types if specified
-    if selected_cuisines:
-        cuisine_conditions = []
-        for cuisine in selected_cuisines:
-            cuisine_conditions.append("r.cuisineType ILIKE :cuisine_" + cuisine)
-            params["cuisine_" + cuisine] = f"%{cuisine}%"
-        query += " AND (" + " OR ".join(cuisine_conditions) + ")"
-
+    # Execute and render results
     restaurants = g.conn.execute(text(query), params).fetchall()
-
     return render_template('search_results.html', results=restaurants)
 
 # Helper function to get all restaurants
@@ -386,4 +446,3 @@ if __name__ == "__main__":
         app.run(host=host, port=port, debug=debug, threaded=threaded)
 
     run()
-

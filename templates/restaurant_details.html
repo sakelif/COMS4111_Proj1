@@ -10,7 +10,8 @@
 <ul>
     {% for item in menu_items %}
         <li>
-            {{ item.item_name }} - Ingredients: 
+            <strong>{{ item.item_name }}</strong> - ${{ item.price | round(2) }}<br>
+            Ingredients: 
             {% for ingredient in item.ingredients %}
                 {% if ingredient in allergens %}
                     <span style="color: red; font-weight: bold;">{{ ingredient }}</span>
@@ -39,15 +40,6 @@
 {% else %}
     <p>No reviews yet.</p>
 {% endif %}
-
-<!-- Conditionally display "Save" or "Unsave" button -->
-<form method="POST">
-    {% if is_saved %}
-        <button type="submit" name="unsave_restaurant">Unsave Restaurant</button>
-    {% else %}
-        <button type="submit" name="save_restaurant">Save Restaurant</button>
-    {% endif %}
-</form>
 
 <h3>Write a Review</h3>
 <form method="POST">

@@ -2,7 +2,6 @@
 {% block content %}
 <h2>Customer Dashboard</h2>
 
-<!-- Filter Restaurants -->
 <h3>Filter Restaurants</h3>
 <form method="POST" action="{{ url_for('filter_restaurants') }}">
     <label for="max_distance">Max Distance (miles):</label>
@@ -14,7 +13,6 @@
     <label for="min_reviews">Minimum Reviews:</label>
     <input type="text" id="min_reviews" name="min_reviews">
     
-    <!-- Cuisine Type Checkbox Options -->
     <h4>Select Cuisine Type(s):</h4>
     <div>
         <input type="checkbox" name="cuisine_types" value="French"> French<br>
@@ -23,13 +21,11 @@
         <input type="checkbox" name="cuisine_types" value="Italian"> Italian<br>
         <input type="checkbox" name="cuisine_types" value="Seafood"> Seafood<br>
         <input type="checkbox" name="cuisine_types" value="Southern"> Southern<br>
-        <!-- Add more general categories as needed -->
     </div>
     
     <button type="submit">Filter</button>
 </form>
 
-<!-- Display Saved Restaurants -->
 <h3>Your Saved Restaurants</h3>
 <ul>
     {% for restaurant in saved_restaurants %}
@@ -37,21 +33,23 @@
     {% endfor %}
 </ul>
 
-<!-- Allergen Management Section -->
 <h3>Your Allergens</h3>
-<ul>
-    {% for allergen in allergens %}
-        <li>{{ allergen }}
-            <form method="POST" action="{{ url_for('delete_allergen') }}" style="display:inline;">
+<div class="allergen-section">
+    <ul>
+        {% for allergen in allergens %}
+        <li class="allergen-list-item">
+            <span>{{ allergen }}</span>
+            <form method="POST" action="{{ url_for('delete_allergen') }}" style="margin: 0;">
                 <input type="hidden" name="allergen" value="{{ allergen }}">
-                <button type="submit">Delete</button>
+                <button type="submit" class="allergen-delete">Delete</button>
             </form>
         </li>
-    {% endfor %}
-</ul>
+        {% endfor %}
+    </ul>
+</div>
 
 <h4>Add New Allergen</h4>
-<form method="POST" action="{{ url_for('add_allergen') }}">
+<form method="POST" action="{{ url_for('add_allergen') }}" class="allergen-section">
     <label for="new_allergen">Allergen:</label>
     <input type="text" id="new_allergen" name="new_allergen" required>
     <button type="submit">Add Allergen</button>
