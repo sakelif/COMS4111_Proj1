@@ -268,43 +268,36 @@ def delete_allergen():
 def restaurant_details(rest_name):
     user_id = session.get('user_id')
 
-    # Handle review submission
-    if request.method == 'POST':
-        review_content = request.form.get('review_content')
-        rating = request.form.get('rating')
-
-        if review_content and rating:
-            try:
-                # Generate a new review_id
-                new_review_id = random.randint(10000, 99999)
-                review_query = """
-                    INSERT INTO Review_Writes (review_id, contents, rating, dt, user_id)
-                    VALUES (:review_id, :contents, :rating, CURRENT_DATE, :user_id)
-                """
-                g.conn.execute(text(review_query), {
-                    'review_id': new_review_id,
-                    'contents': review_content,
-                    'rating': int(rating),
-                    'user_id': user_id
-                })
-
-                # Associate the new review with the restaurant
-                review_has_query = """
-                    INSERT INTO Review_has (review_id, rest_name)
-                    VALUES (:review_id, :rest_name)
-                """
-                g.conn.execute(text(review_has_query), {
-                    'review_id': new_review_id,
-                    'rest_name': rest_name
-                })
-
-                flash('Review submitted successfully')
-            except Exception as e:
-                print("Error submitting review:", e)
-                flash('Error submitting review')
+    # Handle "Save Restaurant" action
+    if request.method == 'POST' and request.form.get('action') == 'save_restaurant':
+        try:
+            query = """
+                INSERT INTO Customer_Saves (user_id, rest_name)
+                VALUES (:user_id, :rest_name)
+                ON CONFLICT DO NOTHING
+            """
+            g.conn.execute(text(query), {'user_id': user_id, 'rest_name': rest_name})
+            flash(f'Restaurant "{rest_name}" saved successfully.')
+        except Exception as e:
+            print(f"Error saving restaurant: {e}")
+            flash('Error saving restaurant.')
         return redirect(url_for('restaurant_details', rest_name=rest_name))
 
-    # Fetch restaurant details, including cuisine type
+    # Handle "Unsave Restaurant" action
+    if request.method == 'POST' and request.form.get('action') == 'unsave_restaurant':
+        try:
+            query = """
+                DELETE FROM Customer_Saves
+                WHERE user_id = :user_id AND rest_name = :rest_name
+            """
+            g.conn.execute(text(query), {'user_id': user_id, 'rest_name': rest_name})
+            flash(f'Restaurant "{rest_name}" unsaved successfully.')
+        except Exception as e:
+            print(f"Error unsaving restaurant: {e}")
+            flash('Error unsaving restaurant.')
+        return redirect(url_for('restaurant_details', rest_name=rest_name))
+
+    # Fetch restaurant details
     query = """
         SELECT rest_name AS name, loc AS location, cuisineType AS cuisine,
                diet_name AS diet, latitude, longitude
@@ -313,10 +306,17 @@ def restaurant_details(rest_name):
     """
     restaurant = g.conn.execute(text(query), {'rest_name': rest_name}).fetchone()
 
-    # Check for and split cuisine types
     cuisine_types = restaurant['cuisine'].split(', ') if restaurant['cuisine'] else []
 
-    # Calculate distance between user and restaurant
+    # Check if restaurant is saved
+    saved_query = """
+        SELECT COUNT(*) AS count
+        FROM Customer_Saves
+        WHERE user_id = :user_id AND rest_name = :rest_name
+    """
+    is_saved = g.conn.execute(text(saved_query), {'user_id': user_id, 'rest_name': rest_name}).fetchone()['count'] > 0
+
+    # Calculate distance
     user_location_query = "SELECT latitude, longitude FROM People WHERE user_id = :user_id"
     user_location = g.conn.execute(text(user_location_query), {'user_id': user_id}).fetchone()
 
@@ -324,7 +324,7 @@ def restaurant_details(rest_name):
     if user_location:
         distance = calculate_distance(user_location.latitude, user_location.longitude, restaurant.latitude, restaurant.longitude)
 
-    # Fetch reviews for the restaurant
+    # Fetch reviews
     reviews_query = """
         SELECT p.name, rw.rating, rw.contents, rw.dt
         FROM Review_Writes rw
@@ -335,7 +335,7 @@ def restaurant_details(rest_name):
     """
     reviews = g.conn.execute(text(reviews_query), {'rest_name': rest_name}).fetchall()
 
-    # Fetch menu items with ingredients and allergen information
+    # Fetch menu items
     menu_query = """
         SELECT mic.item_name, mic.price, 
                ARRAY_AGG(DISTINCT mii.ing_name) AS ingredients,
@@ -353,7 +353,8 @@ def restaurant_details(rest_name):
         cuisine_types=cuisine_types,
         distance=distance,
         reviews=reviews,
-        menu_items=menu_items
+        menu_items=menu_items,
+        is_saved=is_saved
     )
 
 @app.route('/filter_restaurants', methods=['POST'])

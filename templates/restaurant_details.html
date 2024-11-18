@@ -4,7 +4,7 @@
 <p><strong>Location:</strong> {{ restaurant.location or "Not specified" }}</p>
 <p><strong>Cuisine Type:</strong> {{ cuisine_types | join(', ') }}</p>
 <p><strong>Diet Type:</strong> {{ restaurant.diet or "Not specified" }}</p>
-<p><strong>Distance from you:</strong> {{ distance | round(2) }} miles</p>
+<p><strong>Distance from you:</strong> {{ distance | round(2) if distance else "Not available" }} miles</p>
 
 <h3>Menu</h3>
 <ul>
@@ -26,6 +26,19 @@
         </li>
     {% endfor %}
 </ul>
+
+<h3>{{ restaurant.name }}</h3>
+{% if is_saved %}
+    <form method="POST">
+        <input type="hidden" name="action" value="unsave_restaurant">
+        <button type="submit">Unsave this Restaurant</button>
+    </form>
+{% else %}
+    <form method="POST">
+        <input type="hidden" name="action" value="save_restaurant">
+        <button type="submit">Save this Restaurant</button>
+    </form>
+{% endif %}
 
 <h3>Reviews</h3>
 {% if reviews %}
