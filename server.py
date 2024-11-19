@@ -64,19 +64,34 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        query = f"SELECT user_id, employee_id AS is_admin, password FROM People WHERE name = '{username}'"
-        result = g.conn.execute(query).fetchone()
-        print(result)
-        print(result['password'])
-        h_password = generate_password_hash(password)
-        print(password)
-        if result and check_password_hash(h_password, password):
-            session['logged_in'] = True
-            session['user_id'] = result['user_id']
-            session['is_admin'] = result['is_admin']
-            return redirect(url_for('home'))
-        else:
-            flash('Invalid credentials')
+
+        # Fetch user details
+        query = "SELECT user_id, employee_id AS is_admin, password FROM People WHERE name = :username"
+        result = g.conn.execute(text(query), {'username': username}).fetchone()
+
+        # Validate username existence
+        if not result:
+            flash('Username does not exist')
+            return redirect(url_for('login'))
+
+        stored_password = result['password']
+
+        # Check password (plain text or hashed)
+        is_valid_password = (
+            check_password_hash(stored_password, password)  # For hashed passwords
+            or stored_password == password  # For plain-text passwords
+        )
+
+        if not is_valid_password:
+            flash('Invalid password')
+            return redirect(url_for('login'))
+
+        # Set session variables on successful login
+        session['logged_in'] = True
+        session['user_id'] = result['user_id']
+        session['is_admin'] = result['is_admin']
+        return redirect(url_for('home'))
+
     return render_template('login.html')
 
 # Logout route
@@ -92,27 +107,38 @@ def register():
         username = request.form['username']
         password = request.form['password']
         is_admin = request.form['is_admin'] == 'admin'
-        hashed_password = generate_password_hash(password)
+        hashed_password = generate_password_hash(password)  # Hash the new password
         user_id = generate_random_user_id()
 
         try:
             if is_admin:
-                query = "INSERT INTO People (user_id, name, password, employee_id) VALUES (:user_id, :username, :password, TRUE)"
-                g.conn.execute(text(query), {'user_id': user_id, 'username': username, 'password': hashed_password})
+                query = """
+                    INSERT INTO People (user_id, name, password, employee_id) 
+                    VALUES (:user_id, :username, :password, TRUE)
+                """
+                g.conn.execute(text(query), {
+                    'user_id': user_id,
+                    'username': username,
+                    'password': hashed_password
+                })
                 flash('Admin profile created successfully')
             else:
                 latitude = request.form['latitude']
                 longitude = request.form['longitude']
                 photo = request.form['photo']
-                allergens = request.form['allergens'].split(',')  # Get allergens from input
+                allergens = request.form['allergens'].split(',')
 
                 query = """
                     INSERT INTO People (user_id, name, password, employee_id, photo, latitude, longitude)
                     VALUES (:user_id, :username, :password, FALSE, :photo, :latitude, :longitude)
                 """
                 g.conn.execute(text(query), {
-                    'user_id': user_id, 'username': username, 'password': hashed_password,
-                    'photo': photo, 'latitude': latitude, 'longitude': longitude
+                    'user_id': user_id,
+                    'username': username,
+                    'password': hashed_password,
+                    'photo': photo,
+                    'latitude': latitude,
+                    'longitude': longitude
                 })
 
                 # Insert allergens into Customer_Allergens table
