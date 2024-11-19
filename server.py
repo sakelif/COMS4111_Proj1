@@ -129,6 +129,52 @@ def register():
         return redirect(url_for('login'))
     return render_template('register.html')
 
+@app.route('/delete_account', methods=['POST'])
+def delete_account():
+    user_id = session.get('user_id')
+
+    if not user_id:
+        flash('No user logged in')
+        return redirect(url_for('home'))
+
+    try:
+        # Step 1: Set user_id in Review_Writes to NULL for the deleted user's reviews
+        update_reviews_query = """
+            UPDATE Review_Writes 
+            SET user_id = NULL 
+            WHERE user_id = :user_id
+        """
+        g.conn.execute(text(update_reviews_query), {'user_id': user_id})
+
+        # Step 2: Delete associated data from related tables (Customer_Allergens and Customer_Saves)
+        delete_allergens_query = """
+            DELETE FROM Customer_Allergens 
+            WHERE user_id = :user_id
+        """
+        g.conn.execute(text(delete_allergens_query), {'user_id': user_id})
+
+        delete_saved_restaurants_query = """
+            DELETE FROM Customer_Saves 
+            WHERE user_id = :user_id
+        """
+        g.conn.execute(text(delete_saved_restaurants_query), {'user_id': user_id})
+
+        # Step 3: Delete the user from the People table
+        delete_user_query = """
+            DELETE FROM People 
+            WHERE user_id = :user_id
+        """
+        g.conn.execute(text(delete_user_query), {'user_id': user_id})
+
+        # Step 4: Clear session and log the user out
+        session.clear()
+        flash('Account deleted successfully')
+
+    except Exception as e:
+        print("Error deleting account:", e)
+        flash('Error deleting account. Please try again later.')
+
+    return redirect(url_for('home'))
 
 # Helper function to get unique cuisine types
 def get_unique_cuisines():
@@ -367,10 +413,10 @@ def restaurant_details(rest_name):
 
     # Fetch reviews
     reviews_query = """
-        SELECT p.name, rw.rating, rw.contents, rw.dt
+        SELECT COALESCE(p.name, 'Anonymous') AS name, rw.rating, rw.contents, rw.dt
         FROM Review_Writes rw
+        LEFT JOIN People p ON rw.user_id = p.user_id
         JOIN Review_has rh ON rw.review_id = rh.review_id
-        JOIN People p ON rw.user_id = p.user_id
         WHERE rh.rest_name = :rest_name
         ORDER BY rw.dt DESC
     """
