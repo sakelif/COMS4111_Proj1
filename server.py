@@ -389,6 +389,10 @@ def restaurant_details(rest_name):
     """
     menu_items = g.conn.execute(text(menu_query), {'rest_name': rest_name, 'user_id': user_id}).fetchall()
 
+    # Normalize allergens to strings for comparison
+    allergen_query = "SELECT allergen FROM Customer_Allergens WHERE user_id = :user_id"
+    allergens = [row['allergen'].strip().lower() for row in g.conn.execute(text(allergen_query), {'user_id': user_id}).fetchall()]
+
     return render_template(
         'restaurant_details.html',
         restaurant=restaurant,
@@ -396,7 +400,8 @@ def restaurant_details(rest_name):
         distance=distance,
         reviews=reviews,
         menu_items=menu_items,
-        is_saved=is_saved
+        is_saved=is_saved,
+        allergens=allergens
     )
 
 @app.route('/filter_restaurants', methods=['POST'])
