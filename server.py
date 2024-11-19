@@ -5,6 +5,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
 from flask import Flask, request, render_template, g, redirect, url_for, flash, session
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
 
 tmpl_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
 app = Flask(__name__, template_folder=tmpl_dir)
@@ -268,34 +269,74 @@ def delete_allergen():
 def restaurant_details(rest_name):
     user_id = session.get('user_id')
 
-    # Handle "Save Restaurant" action
-    if request.method == 'POST' and request.form.get('action') == 'save_restaurant':
-        try:
-            query = """
-                INSERT INTO Customer_Saves (user_id, rest_name)
-                VALUES (:user_id, :rest_name)
-                ON CONFLICT DO NOTHING
-            """
-            g.conn.execute(text(query), {'user_id': user_id, 'rest_name': rest_name})
-            flash(f'Restaurant "{rest_name}" saved successfully.')
-        except Exception as e:
-            print(f"Error saving restaurant: {e}")
-            flash('Error saving restaurant.')
-        return redirect(url_for('restaurant_details', rest_name=rest_name))
+    # Handle form submissions
+    if request.method == 'POST':
+        action = request.form.get('action')
 
-    # Handle "Unsave Restaurant" action
-    if request.method == 'POST' and request.form.get('action') == 'unsave_restaurant':
-        try:
-            query = """
-                DELETE FROM Customer_Saves
-                WHERE user_id = :user_id AND rest_name = :rest_name
-            """
-            g.conn.execute(text(query), {'user_id': user_id, 'rest_name': rest_name})
-            flash(f'Restaurant "{rest_name}" unsaved successfully.')
-        except Exception as e:
-            print(f"Error unsaving restaurant: {e}")
-            flash('Error unsaving restaurant.')
-        return redirect(url_for('restaurant_details', rest_name=rest_name))
+        # Save restaurant
+        if action == 'save_restaurant':
+            try:
+                query = """
+                    INSERT INTO Customer_Saves (user_id, rest_name)
+                    VALUES (:user_id, :rest_name)
+                    ON CONFLICT DO NOTHING
+                """
+                g.conn.execute(text(query), {'user_id': user_id, 'rest_name': rest_name})
+                flash(f'Restaurant "{rest_name}" saved successfully.')
+            except Exception as e:
+                print(f"Error saving restaurant: {e}")
+                flash('Error saving restaurant.')
+            return redirect(url_for('restaurant_details', rest_name=rest_name))
+
+        # Unsave restaurant
+        elif action == 'unsave_restaurant':
+            try:
+                query = """
+                    DELETE FROM Customer_Saves
+                    WHERE user_id = :user_id AND rest_name = :rest_name
+                """
+                g.conn.execute(text(query), {'user_id': user_id, 'rest_name': rest_name})
+                flash(f'Restaurant "{rest_name}" unsaved successfully.')
+            except Exception as e:
+                print(f"Error unsaving restaurant: {e}")
+                flash('Error unsaving restaurant.')
+            return redirect(url_for('restaurant_details', rest_name=rest_name))
+
+        # Submit a review
+        elif request.form.get('review_content') and request.form.get('rating'):
+            contents = request.form['review_content']
+            rating = int(request.form['rating'])
+            try:
+                # Generate a unique review_id for the new review
+                review_id_query = "SELECT COALESCE(MAX(review_id), 0) + 1 AS new_review_id FROM Review_Writes"
+                new_review_id = g.conn.execute(text(review_id_query)).fetchone()['new_review_id']
+
+                # Insert the new review into Review_Writes table
+                review_query = """
+                    INSERT INTO Review_Writes (review_id, contents, rating, dt, user_id) 
+                    VALUES (:review_id, :contents, :rating, CURRENT_DATE, :user_id)
+                """
+                g.conn.execute(text(review_query), {
+                    'review_id': new_review_id,
+                    'contents': contents,
+                    'rating': rating,
+                    'user_id': user_id
+                })
+
+                # Link the review to the restaurant in the Review_has table
+                link_query = "INSERT INTO Review_has (review_id, rest_name) VALUES (:review_id, :rest_name)"
+                g.conn.execute(text(link_query), {'review_id': new_review_id, 'rest_name': rest_name})
+
+                flash('Review submitted successfully')
+            except Exception as e:
+                print(f"Error submitting review: {e}")
+                flash('Error submitting review.')
+            return redirect(url_for('restaurant_details', rest_name=rest_name))
+
+        # Invalid action
+        else:
+            flash('Invalid action submitted.')
+            return redirect(url_for('restaurant_details', rest_name=rest_name))
 
     # Fetch restaurant details
     query = """
@@ -334,6 +375,7 @@ def restaurant_details(rest_name):
         ORDER BY rw.dt DESC
     """
     reviews = g.conn.execute(text(reviews_query), {'rest_name': rest_name}).fetchall()
+    print(f"Fetched reviews for {rest_name}: {reviews}")
 
     # Fetch menu items
     menu_query = """
