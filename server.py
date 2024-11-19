@@ -106,11 +106,12 @@ def register():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        is_admin = request.form['is_admin'] == 'admin'
-        hashed_password = generate_password_hash(password)  # Hash the new password
+        is_admin = request.form['is_admin'] == 'admin'  # Check if admin
+        hashed_password = generate_password_hash(password)  # Always hash new passwords
         user_id = generate_random_user_id()
 
         try:
+            # Registration logic for admins
             if is_admin:
                 query = """
                     INSERT INTO People (user_id, name, password, employee_id) 
@@ -122,7 +123,7 @@ def register():
                     'password': hashed_password
                 })
                 flash('Admin profile created successfully')
-            else:
+            else:  # Registration logic for customers
                 latitude = request.form['latitude']
                 longitude = request.form['longitude']
                 photo = request.form['photo']
@@ -148,6 +149,7 @@ def register():
                         g.conn.execute(text(allergen_query), {'user_id': user_id, 'allergen': allergen.strip()})
 
                 flash('Customer profile created successfully')
+
         except Exception as e:
             print("Registration Error:", e)
             flash('Error during registration')
